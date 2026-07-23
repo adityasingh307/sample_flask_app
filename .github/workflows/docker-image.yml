@@ -1,28 +1,37 @@
 name: Build Docker image
 
 on:
-    push:
-        branches: [main]
+  push:
+    branches: [main]
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Login to DockerHub
-              uses: docker/login-action@v3
-              with:
-                  username: ${{ secrets.DOCKERHUB_USERNAME }}
-                  password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-            - name: Build the Docker image
-              run: docker build . --file ./Dockerfile --tag ${{ secrets.DOCKERHUB_USERNAME }}/sample_flask_app:latest
+      - name: Build the Docker image
+        run: docker build . --file ./Dockerfile --tag ${{ secrets.DOCKERHUB_USERNAME }}/sample_flask_app:latest
 
-            - name: Push the Docker image to DockerHub
-              run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/sample_flask_app:latest
+      - name: Push the Docker image to DockerHub
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/sample_flask_app:latest
 
-            - name: Logout from DockerHub
-              run: docker logout
+      - name: SSH into the server
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/sample_flask_app:latest
+            docker stop sample_flask_app || true
+            docker rm sample_flask_app || true
+            docker run -d --restart unless-stopped --name sample_flask_app -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/sample_flask_app:latest
